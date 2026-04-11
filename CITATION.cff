@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "Universal Skeleton Action Recognition"
+message: "If you use this repository, please cite the corresponding paper."
+type: software
+authors:
+  - family-names: "Kuang"
+    given-names: "Jidong"
+repository-code: "https://github.com/jidongkuang/universal-skeleton-action-recognition"
+abstract: "PyTorch implementation of Towards Universal Skeleton-Based Action Recognition."
+keywords:
+  - skeleton-based action recognition
+  - action recognition
+  - open vocabulary
+  - human motion
+  - multimodal learning
+license: "MIT"
+version: "0.1.0"
+date-released: "2026-04-11"
+preferred-citation:
+  type: article
+  title: "Towards Universal Skeleton-Based Action Recognition"
+  authors:
+    - family-names: "Kuang"
+      given-names: "Jidong"
+  journal: "arXiv"
+  year: 2026
+  url: "https://arxiv.org/abs/TODO"

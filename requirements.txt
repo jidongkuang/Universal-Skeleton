@@ -1,0 +1,10 @@
+torch
+torchvision
+numpy
+tqdm
+tensorboard
+einops
+orjson
+ftfy
+regex
+pillow

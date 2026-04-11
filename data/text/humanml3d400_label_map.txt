@@ -1,0 +1,400 @@
+walk
+jump
+throw
+turn
+wave
+circle walk
+pick up
+sit
+backwards walk
+kick
+jog in place
+stand
+jumping jacks
+step
+right turn
+lower
+hop
+arms raise
+raise hand
+squat
+dance
+lift
+put down
+clap
+spin
+stair walk
+walk forward
+crawl
+punch
+stand up
+side step
+down
+run
+diagonal walk
+sprint
+stumble
+drink
+left hand activity
+stop
+raise
+arms cross
+arm stretch
+move
+bend
+step back
+jogging
+stretch
+forward motion
+put
+push
+kneel
+stair climb
+arms wave
+dance waltz
+circle motion
+step left
+shoulder roll
+jump rope
+rub
+get up
+reach
+arm raise
+step walk
+wipe
+hold
+step forward
+right
+place
+curve walk
+backwards
+side to side movement
+boxing motion
+bow
+clockwise circle
+arms swing
+climb
+head scratch
+limp
+backwards step
+shake
+left
+hand movement
+grab
+circle
+walk slowly
+swing
+jump backwards
+shuffle
+hand gesture
+arms lower
+assistance
+face touch
+dodge
+swim stroke
+golf swing
+shake hands
+return
+twist
+jazz hands
+step down
+straight line walk
+treadmill walk
+pour
+lunges
+right walk
+move left
+shift
+march
+point
+repeat
+rightward motion
+elbow bend
+overhead stretch
+gesture
+sideways walk
+answer phone call
+side to side walk
+stir
+pace
+wave hands
+pull
+jumping jack
+observe
+slide
+tilt
+arm movement
+lean
+stomp
+cartwheel
+wash
+circular motion
+diagonal step
+drag
+drive
+cough
+step backward
+rock
+warm up
+single-leg balance
+arms outstretched
+shrug
+fall
+pose
+walk left
+obstacle course
+overhand throw
+shout
+slap
+roll
+cleaning
+half circle walk
+crouch
+balance
+clean
+walk on beam
+resistance training
+recover
+forward
+zigzag
+scratch
+jump squat
+tightrope walk
+arms fold
+jogging in a circle
+uncross
+side stretch
+up
+backflip
+back
+jump bounce
+hip circle
+sneak
+jumps
+wrist check
+forward bend
+guitar strum
+karate kick
+leg stretch
+stretch arms
+t-pose
+self-massage
+circle run
+wiggle
+head touch
+chicken dance
+movement
+rhythmic bounce
+hip twist
+uphill walk
+check watch
+dance move
+both hands
+down motion
+window cleaning
+arm swing
+quick walk
+hand touch
+walk across
+flap wings
+overhead press
+arm extension
+hand to face
+right lean
+swat
+backwards run
+carry
+leg raise
+jump on one leg
+overhead lift
+change of direction
+support
+box step
+strut
+air jump
+transport
+jogging pattern
+tennis
+one hand
+defend
+fight stance
+moonwalk
+dance walk
+winding motion
+shoulder shrug
+degree turn
+gait
+knock on door
+s-walk
+bicep curl
+path walk
+figure
+jumping spin
+left arm
+tie shoe
+yoga pose
+right leg swing
+seated
+walk motion
+raise left arm
+handstand
+chicken impression
+stretching
+hug
+quick movement
+karate move
+cross legged
+adjust
+r hop
+body movement
+push-up
+arm wave
+juggle
+defensive move
+forward crawl
+basketball
+drum motion
+random walk
+long jump
+knee lift
+clockwise walk
+monkey motion
+step jog turn
+uppercut
+right foot walk
+step descent
+quick footwork
+take steps
+figure eight walk
+half circle
+jog left
+neck stretch
+s-shape walk
+signal
+violin play
+backwards dribble
+imitation
+both hands pick up
+hair hit
+one-legged balance
+feet touch
+hunch walk
+bend down
+unscrew
+sitting
+sit up
+curve
+torso twist
+handrail
+air turn
+press button
+strike out
+tee off
+eat/drink
+forwards walk
+accident
+screen touch
+mixing motion
+prayer
+elbow twitch
+frustration gesture
+hair wash
+chest raise
+brush
+ground push
+arc run
+continuous pick up
+knee bend
+squats
+walk in a square
+leg movement
+chair sit
+wobbly gait
+gaze
+stretch left leg
+soccer kick
+steering wheel turn
+right arms
+rage
+left hand movement
+left leg injured
+five-step
+ankle twist
+bend left arm
+right run
+football
+side stepping
+wall walk
+motive action
+movement sequence
+feet move
+right angle walk
+mouth move
+object
+rub hands together
+steps
+left to right
+knee to knee
+sideways movement
+cross hands
+lateral stretch
+leg over leg
+jerky movements
+jar open
+arms exercises
+hip nod
+shoot a basketball
+heel to toe walk
+arms hold
+cover face
+bodybuilder pose
+ride motorcycle
+abdominal stretch
+shovel dig
+surprised
+boxer punch
+lateral movement
+right foot step
+head hold
+stomach rub
+held item
+snake
+stretch shoulders
+clockwise run
+right side move
+left arm pain
+s-shaped movement
+stance
+right hand position
+photography
+put left hand on
+head turn
+arm warm-up
+left arm hold
+dumbbell lift
+point to the right
+claw
+right fall
+put on shelf
+lie down
+basketball signals
+red hand
+scan
+plank
+hula dance
+body position
+seat
+leg raise warm up
+brushing teeth
+stick figure
+x throw/hit
+rake
+right leg pivot
+airplane simulation
+smoking
+sprinter
+grapevine
+toolbox pickup
+hand rotation
+jaunty hand roll
+jerky drop
