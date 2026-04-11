@@ -4,6 +4,8 @@ PyTorch implementation of **Towards Universal Skeleton-Based Action Recognition*
 
 This repository is a cleaned, GitHub-ready release of the main training pipeline used for universal skeleton-based action recognition under heterogeneous skeleton sources and open-vocabulary supervision.
 
+![Pipeline Overview](assets/pipeline_overview.png)
+
 ## Overview
 
 The released code focuses on the core setting described in the paper:
@@ -49,29 +51,61 @@ pip install -r requirements.txt
 
 ## Dataset Preparation
 
-This repository does not bundle datasets, pretrained checkpoints, or large cached artifacts.
+This repository does not bundle large datasets, pretrained checkpoints, or cached artifacts.  
+The default codebase assumes that datasets are organized under the repository-local `data/` directory.
 
-Set the required environment variables before training:
+Recommended layout:
 
-```bash
-export HUMANML3D_ROOT=/path/to/HumanML3D
-export HOV_NTU120_3D=/path/to/NTU120_CSub.npz
-export HOV_NTU120_2D=/path/to/ntu120_hrnet.pkl
-export HOV_NTU120_2D_MEAN=/path/to/ntu120_2d_Mean.npy
-export HOV_NTU120_2D_STD=/path/to/ntu120_2d_Std.npy
-export HOV_DEVICE=0
-export HOV_OUTPUT_DIR=work_dirs/hov_main
+```text
+data/
+|-- annotations/
+|   `-- humanml3d_label_groups.json        # included in this repo
+|-- text/
+|   |-- ntu120_label_map.txt               # included in this repo
+|   `-- humanml3d400_label_map.txt         # included in this repo
+|-- ntu/
+|   `-- NTU120_CSub.npz                    # to be prepared by user
+|-- nturgb/
+|   |-- ntu120_hrnet.pkl                   # to be prepared by user
+|   |-- ntu120_2d_Mean.npy                 # to be prepared by user
+|   `-- ntu120_2d_Std.npy                  # to be prepared by user
+`-- HumanML3D/
+    |-- annotations_actions_400.json       # to be prepared by user
+    |-- mean_std/
+    |   |-- new_Mean.npy                   # to be prepared by user
+    |   `-- new_Std.npy                    # to be prepared by user
+    |-- new_joints/                        # to be prepared by user
+    |-- texts/                             # to be prepared by user
+    `-- split/
+        |-- new_train_longtail.txt         # to be prepared by user
+        `-- new_val_longtail.txt           # to be prepared by user
 ```
 
-Expected `HumanML3D` layout:
+The default training code reads from the paths above. Environment variables are only optional overrides for special environments.
 
-- `annotations_actions_400.json`
-- `mean_std/new_Mean.npy`
-- `mean_std/new_Std.npy`
-- `new_joints/`
-- `texts/`
-- `split/new_train_longtail.txt`
-- `split/new_val_longtail.txt`
+## Data Status
+
+Already included in this repository:
+
+- `data/annotations/humanml3d_label_groups.json`
+- `data/text/ntu120_label_map.txt`
+- `data/text/humanml3d400_label_map.txt`
+
+Not uploaded to this repository yet:
+
+- `data/ntu/NTU120_CSub.npz`
+- `data/nturgb/ntu120_hrnet.pkl`
+- `data/nturgb/ntu120_2d_Mean.npy`
+- `data/nturgb/ntu120_2d_Std.npy`
+- `data/HumanML3D/annotations_actions_400.json`
+- `data/HumanML3D/mean_std/new_Mean.npy`
+- `data/HumanML3D/mean_std/new_Std.npy`
+- `data/HumanML3D/new_joints/`
+- `data/HumanML3D/texts/`
+- `data/HumanML3D/split/new_train_longtail.txt`
+- `data/HumanML3D/split/new_val_longtail.txt`
+
+These files are omitted from GitHub because of dataset size, preprocessing requirements, and redistribution constraints.
 
 ## Training
 
