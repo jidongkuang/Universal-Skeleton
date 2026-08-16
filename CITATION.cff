@@ -6,7 +6,7 @@ authors:
   - family-names: "Kuang"
     given-names: "Jidong"
 repository-code: "https://github.com/jidongkuang/universal-skeleton-action-recognition"
-abstract: "PyTorch implementation of Towards Universal Skeleton-Based Action Recognition."
+abstract: "PyTorch implementation of Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies."
 keywords:
   - skeleton-based action recognition
   - action recognition
@@ -18,10 +18,18 @@ version: "0.1.0"
 date-released: "2026-04-11"
 preferred-citation:
   type: article
-  title: "Towards Universal Skeleton-Based Action Recognition"
+  title: "Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies"
   authors:
     - family-names: "Kuang"
       given-names: "Jidong"
+    - family-names: "Wang"
+      given-names: "Hongsong"
+    - family-names: "Gui"
+      given-names: "Jie"
+    - family-names: "Tang"
+      given-names: "Yuan Yan"
+    - family-names: "Kwok"
+      given-names: "James Tin-Yau"
   journal: "arXiv"
   year: 2026
   url: "https://arxiv.org/abs/2604.17013"

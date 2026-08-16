@@ -10,6 +10,17 @@ from tqdm import tqdm
 
 from datasets import param_util
 from datasets.transforms import valid_crop_resize
+from datasets.unified_skeleton import canonicalize, replicate_people
+
+
+def _unify_smpl_motion(motion):
+    source = np.asarray(motion, dtype=np.float32)[:, None, :, :]
+    if source.shape[-2:] != (22, 3):
+        raise ValueError(f"unexpected HumanML3D motion shape {source.shape}")
+    observed = np.isfinite(source).all(axis=-1)
+    skeleton = canonicalize(source, "smpl22", observed)
+    skeleton = replicate_people(skeleton, person_axis=1)
+    return skeleton.coordinates.transpose(3, 0, 2, 1)
 
 
 def load_label_groups(classification_file_path):
@@ -43,14 +54,6 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
         self.max_length = 20
         self.pointer = 0
         self.dataset_name = "t2m"
-        self.joint_sequence = [
-            0, 3, 12, 15, 13,
-            16, 18, 20, 14, 17,
-            19, 21, 1, 4, 7,
-            10, 2, 5, 8, 11,
-            9, 22, 22, 22, 22,
-            22, 22, 22, 22, 22, 6, 22, 22,
-        ]
         self.motion_dir = pjoin(self.data_root, "new_joints")
         self.text_dir = pjoin(self.data_root, "texts")
         self.meta_dir = pjoin(self.data_root, "mean_std")
@@ -154,10 +157,7 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
         if self.normalization:
             motion = (motion - self.mean) / self.std
 
-        data_numpy = np.expand_dims(motion, axis=0)
-        data_numpy = np.pad(data_numpy, ((0, 1), (0, 0), (0, 11), (0, 0)), mode="constant")
-        data_numpy = data_numpy[:, :, self.joint_sequence, :]
-        data_numpy = data_numpy.transpose(3, 1, 2, 0)
+        data_numpy = _unify_smpl_motion(motion)
         label_feature = self.label_features[label]
         data_numpy = valid_crop_resize(data_numpy, m_length, self.p_interval, self.window_size)
         return data_numpy, label, label_feature
@@ -181,14 +181,6 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
         self.max_motion_length = 196
         self.max_length = 20
         self.pointer = 0
-        self.joint_sequence = [
-            0, 3, 12, 15, 13,
-            16, 18, 20, 14, 17,
-            19, 21, 1, 4, 7,
-            10, 2, 5, 8, 11,
-            9, 22, 22, 22, 22,
-            22, 22, 22, 22, 22, 6, 22, 22,
-        ]
         self.motion_dir = pjoin(self.data_root, "new_joints")
         self.text_dir = pjoin(self.data_root, "texts")
         self.meta_dir = pjoin(self.data_root, "mean_std")
@@ -290,9 +282,6 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
         if self.normalization:
             motion = (motion - self.mean) / self.std
 
-        data_numpy = np.expand_dims(motion, axis=0)
-        data_numpy = np.pad(data_numpy, ((0, 1), (0, 0), (0, 11), (0, 0)), mode="constant")
-        data_numpy = data_numpy[:, :, self.joint_sequence, :]
-        data_numpy = data_numpy.transpose(3, 1, 2, 0)
+        data_numpy = _unify_smpl_motion(motion)
         data_numpy = valid_crop_resize(data_numpy, m_length, self.p_interval, self.window_size)
         return data_numpy, multi_hot

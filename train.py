@@ -15,6 +15,7 @@ from tqdm import tqdm
 from config import TrainConfig
 from datasets.humanml3d import HumanML3DEvalDataset, HumanML3DTrainDataset, load_label_groups
 from datasets.ntu import NTU2DDataset, NTU3DDataset
+from datasets.unified_skeleton import BODY_PARTS
 from models.multi_stream_alignment import ContrastiveLoss, MultiStreamAlignmentModel
 from third_party import clip
 from utils.logger import build_logger
@@ -81,6 +82,7 @@ class Trainer:
                 p_interval=(0.5, 1.0),
                 random_rotation=True,
                 window_size=self.cfg.window_size,
+                cache_dir=self.cfg.ntu120_3d_cache_dir,
             ),
             "ntu3d_test": NTU3DDataset(
                 self.cfg.ntu120_3d_path,
@@ -89,6 +91,7 @@ class Trainer:
                 p_interval=(0.95,),
                 random_rotation=False,
                 window_size=self.cfg.window_size,
+                cache_dir=self.cfg.ntu120_3d_cache_dir,
             ),
             "ntu2d_train": NTU2DDataset(
                 self.cfg.ntu120_2d_path,
@@ -147,6 +150,8 @@ class Trainer:
             self.cfg.hidden_size,
             self.cfg.num_heads,
             self.cfg.num_layers,
+            self.cfg.num_joints,
+            self.cfg.num_people,
         ).cuda(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.learning_rate, weight_decay=self.cfg.weight_decay)
 
@@ -182,28 +187,23 @@ class Trainer:
             loss_ts_consistency = self.loss_fn(visual_t, visual_s)
 
             loss_temporal_segments = 0
-            segment_len = t_out.shape[1] // 6
-            for i in range(6):
+            segment_len = t_out.shape[1] // self.cfg.num_temporal_segments
+            for i in range(self.cfg.num_temporal_segments):
                 temporal_segment = t_out[:, i * segment_len:(i + 1) * segment_len, :].amax(dim=1)
                 projected_segment = self.model.temporal_projector(temporal_segment)
                 loss_temporal_segments += self.loss_fn(projected_segment, text)
-            loss_temporal_segments /= 6
+            loss_temporal_segments /= self.cfg.num_temporal_segments
 
             loss_spatial_parts = 0
-            part_indices = {
-                "head": [2, 3, 25, 26, 27, 28, 29],
-                "left_arm": [4, 5, 6, 7, 21, 22],
-                "right_arm": [8, 9, 10, 11, 23, 24],
-                "spine": [0, 1, 20, 30],
-                "left_leg": [12, 13, 14, 15],
-                "right_leg": [16, 17, 18, 19],
-            }
-            for m in range(2):
-                for indices in part_indices.values():
-                    part_features = s_out[:, [x + m * 33 for x in indices], :].amax(dim=1)
+            for person in range(self.cfg.num_people):
+                for indices in BODY_PARTS.values():
+                    token_indices = [
+                        joint + person * self.cfg.num_joints for joint in indices
+                    ]
+                    part_features = s_out[:, token_indices, :].amax(dim=1)
                     projected_part = self.model.spatial_projector(part_features)
                     loss_spatial_parts += self.loss_fn(projected_part, text)
-            loss_spatial_parts /= 12
+            loss_spatial_parts /= self.cfg.num_people * len(BODY_PARTS)
 
             loss_ts_parts = (loss_temporal_segments + loss_spatial_parts) / 2
             loss = self.loss_fn(visual, text) + loss_local + 0.2 * loss_ts_consistency + 0.5 * loss_ts_parts

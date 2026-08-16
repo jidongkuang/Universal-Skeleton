@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
+from datasets.unified_skeleton import BONE_PARENTS, NUM_UNIFIED_JOINTS, NUM_UNIFIED_PEOPLE
+
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, tau=0.4):
@@ -96,10 +98,12 @@ class EmbeddingFusion(nn.Module):
 
 
 class SpatioTemporalTransformer(nn.Module):
-    def __init__(self, hidden_size, num_heads, num_layers):
+    def __init__(self, hidden_size, num_heads, num_layers, num_spatial_tokens):
         super().__init__()
         self.position_encoding = PositionalEncoding(hidden_size)
-        self.spatial_position = torch.nn.Parameter(torch.zeros(1, 2 * 33, hidden_size))
+        self.spatial_position = torch.nn.Parameter(
+            torch.zeros(1, num_spatial_tokens, hidden_size)
+        )
 
         temporal_layer = TransformerEncoderLayer(hidden_size, num_heads, hidden_size, batch_first=True, dropout=0.0)
         self.temporal_encoder_1 = TransformerEncoder(temporal_layer, num_layers)
@@ -124,13 +128,23 @@ class SpatioTemporalTransformer(nn.Module):
 
 
 class BaseEncoder(nn.Module):
-    def __init__(self, temporal_input_size, spatial_input_size, hidden_size, num_heads, num_layers):
+    def __init__(
+        self,
+        temporal_input_size,
+        spatial_input_size,
+        hidden_size,
+        num_heads,
+        num_layers,
+        num_spatial_tokens,
+    ):
         super().__init__()
         self.joint_embedding = ModalityEmbedding(temporal_input_size, spatial_input_size, hidden_size)
         self.bone_embedding = ModalityEmbedding(temporal_input_size, spatial_input_size, hidden_size)
         self.motion_embedding = ModalityEmbedding(temporal_input_size, spatial_input_size, hidden_size)
         self.fusion = EmbeddingFusion(hidden_size, hidden_size, hidden_size)
-        self.encoder = SpatioTemporalTransformer(hidden_size, num_heads, num_layers)
+        self.encoder = SpatioTemporalTransformer(
+            hidden_size, num_heads, num_layers, num_spatial_tokens
+        )
 
     def forward(self, jt, js, bt, bs, mt, ms):
         jt_src, js_src = self.joint_embedding(jt, js)
@@ -144,17 +158,32 @@ class BaseEncoder(nn.Module):
 
 
 class MultiStreamAlignmentModel(nn.Module):
-    def __init__(self, temporal_input_size, spatial_input_size, hidden_size, num_heads, num_layers):
+    def __init__(
+        self,
+        temporal_input_size,
+        spatial_input_size,
+        hidden_size,
+        num_heads,
+        num_layers,
+        num_joints=NUM_UNIFIED_JOINTS,
+        num_people=NUM_UNIFIED_PEOPLE,
+    ):
         super().__init__()
         self.embedding_dim = 2 * hidden_size
-        self.bone_pairs = [
-            (1, 2), (2, 21), (3, 21), (4, 3), (5, 21), (6, 5), (7, 6), (8, 7), (9, 21),
-            (10, 9), (11, 10), (12, 11), (13, 1), (14, 13), (15, 14), (16, 15), (17, 1),
-            (18, 17), (19, 18), (20, 19), (21, 21), (22, 23), (23, 8), (24, 25), (25, 12),
-            (26, 4), (27, 26), (28, 26), (29, 27), (30, 28), (31, 2), (32, 32), (33, 33),
-        ]
+        self.num_joints = int(num_joints)
+        self.num_people = int(num_people)
+        if self.num_joints != len(BONE_PARENTS):
+            raise ValueError("num_joints must match the unified skeleton topology")
+        self.bone_parents = BONE_PARENTS
 
-        self.backbone = BaseEncoder(temporal_input_size, spatial_input_size, hidden_size, num_heads, num_layers)
+        self.backbone = BaseEncoder(
+            temporal_input_size,
+            spatial_input_size,
+            hidden_size,
+            num_heads,
+            num_layers,
+            self.num_people * self.num_joints,
+        )
         self.global_projector = nn.Sequential(
             nn.Linear(self.embedding_dim, self.embedding_dim),
             nn.BatchNorm1d(self.embedding_dim),
@@ -195,13 +224,21 @@ class MultiStreamAlignmentModel(nn.Module):
 
     def _build_modality(self, data_input, modality="joint"):
         n, c, t, v, m = data_input.shape
+        if v != self.num_joints or m != self.num_people:
+            raise ValueError(
+                f"expected {self.num_joints} joints and {self.num_people} people, "
+                f"got {v} joints and {m} people"
+            )
         if modality == "joint":
             temporal = data_input.permute(0, 2, 4, 3, 1).reshape(n, t, m * v * c)
             spatial = data_input.permute(0, 4, 3, 2, 1).reshape(n, m * v, t * c)
         elif modality == "bone":
             bone = torch.zeros_like(data_input)
-            for v1, v2 in self.bone_pairs:
-                bone[:, :, :, v1 - 1, :] = data_input[:, :, :, v1 - 1, :] - data_input[:, :, :, v2 - 1, :]
+            for joint, parent in enumerate(self.bone_parents):
+                if joint != parent:
+                    bone[:, :, :, joint, :] = (
+                        data_input[:, :, :, joint, :] - data_input[:, :, :, parent, :]
+                    )
             temporal = bone.permute(0, 2, 4, 3, 1).reshape(n, t, m * v * c)
             spatial = bone.permute(0, 4, 3, 2, 1).reshape(n, m * v, t * c)
         else:
