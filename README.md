@@ -10,7 +10,8 @@ This repository is a cleaned, GitHub-ready release of the main training pipeline
 
 The released code focuses on the core setting described in the paper:
 
-- heterogeneous training across `NTU RGB+D 120` 3D skeletons, `NTU RGB+D 120` 2D pose sequences, and `HumanML3D`
+- heterogeneous training across either `NTU RGB+D 60` or `NTU RGB+D 120`
+  (3D skeletons and 2D pose sequences) together with `HumanML3D`
 - a multi-stream spatio-temporal encoder
 - multi-grained motion-text alignment
 - long-tail multi-label evaluation on `HumanML3D`
@@ -66,11 +67,15 @@ data/
 |   |-- ntu120_label_map.txt               # included in this repo
 |   `-- humanml3d400_label_map.txt         # included in this repo
 |-- ntu/
-|   `-- NTU120_CSub.npz                    # to be prepared by user
+|   |-- NTU60_CS.npz                       # NTU-60 x-sub, optional
+|   `-- NTU120_CSub.npz                    # NTU-120 x-sub, optional
 |-- nturgb/
-|   |-- ntu120_hrnet.pkl                   # to be prepared by user
-|   |-- ntu120_2d_Mean.npy                 # to be prepared by user
-|   `-- ntu120_2d_Std.npy                  # to be prepared by user
+|   |-- ntu60_2d.pkl                       # NTU-60 2D, optional
+|   |-- ntu60_2d_Mean.npy
+|   |-- ntu60_2d_Std.npy
+|   |-- ntu120_hrnet.pkl                   # NTU-120 2D, optional
+|   |-- ntu120_2d_Mean.npy
+|   `-- ntu120_2d_Std.npy
 `-- HumanML3D/
     |-- annotations_actions_400.json       # to be prepared by user
     |-- mean_std/
@@ -83,10 +88,14 @@ data/
         `-- new_val_longtail.txt           # to be prepared by user
 ```
 
-The default training code reads from the paths above. Environment variables are only optional overrides for special environments.
-On first use, the NTU-3D NPZ members are extracted into `data/cache/ntu120_csub/`
-and subsequently memory-mapped. Set `HOV_NTU_CACHE_DIR` to place this cache on a
-different disk.
+The default profile is NTU-120. Set `HOV_NTU_NUM_CLASSES=60` to select the
+NTU-60 x-sub profile. On first use, the selected NTU-3D NPZ members are extracted
+into `data/cache/` and subsequently memory-mapped.
+
+The generic path overrides are `HOV_NTU_3D`, `HOV_NTU_2D`,
+`HOV_NTU_2D_MEAN`, `HOV_NTU_2D_STD`, and `HOV_NTU_CACHE_DIR`. The legacy
+profile-specific names such as `HOV_NTU60_3D` and `HOV_NTU120_3D` remain
+supported. `HUMANML3D_ROOT` selects the HumanML3D root.
 
 ## Unified Skeleton Representation
 
@@ -135,6 +144,10 @@ Already included in this repository:
 Not uploaded to this repository yet:
 
 - `data/ntu/NTU120_CSub.npz`
+- `data/ntu/NTU60_CS.npz`
+- `data/nturgb/ntu60_2d.pkl`
+- `data/nturgb/ntu60_2d_Mean.npy`
+- `data/nturgb/ntu60_2d_Std.npy`
 - `data/nturgb/ntu120_hrnet.pkl`
 - `data/nturgb/ntu120_2d_Mean.npy`
 - `data/nturgb/ntu120_2d_Std.npy`
@@ -161,6 +174,16 @@ Or directly:
 ```bash
 python train.py
 ```
+
+For the NTU-60 x-sub experiment reported in the main paper:
+
+```bash
+HOV_NTU_NUM_CLASSES=60 bash scripts/train_main.sh
+```
+
+The shared `ntu120_label_map.txt` is ordered according to the official NTU
+class indices. The NTU-60 profile uses exactly its first 60 entries, and both
+training and evaluation are checked against a 60-class candidate matrix.
 
 Logs and checkpoints are written to `work_dirs/` by default.
 

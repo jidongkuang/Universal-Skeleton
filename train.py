@@ -54,20 +54,21 @@ class Trainer:
         }
 
     def load_text_features(self):
-        ntu120_tokens, humanml3d_tokens = load_label_texts(
-            self.cfg.ntu120_label_map_path,
+        ntu_tokens, humanml3d_tokens = load_label_texts(
+            self.cfg.ntu_label_map_path,
             self.cfg.humanml3d_label_map_path,
+            self.cfg.ntu_num_classes,
         )
         clip_model, _ = clip.load(self.cfg.clip_model_name, "cpu")
         del clip_model.visual
         text_encoder = TextCLIP(clip_model).cuda(self.device)
 
         with torch.no_grad():
-            ntu120_features = text_encoder(ntu120_tokens.cuda(self.device)).detach().cpu()
+            ntu_features = text_encoder(ntu_tokens.cuda(self.device)).detach().cpu()
             humanml3d_features = text_encoder(humanml3d_tokens.cuda(self.device)).detach().cpu()
 
         self.label_features = {
-            "ntu120": ntu120_features,
+            "ntu": ntu_features,
             "humanml3d": humanml3d_features,
         }
 
@@ -76,38 +77,38 @@ class Trainer:
 
         self.datasets = {
             "ntu3d_train": NTU3DDataset(
-                self.cfg.ntu120_3d_path,
-                self.label_features["ntu120"],
+                self.cfg.ntu_3d_path,
+                self.label_features["ntu"],
                 split=self.cfg.ntu3d_train_split,
                 p_interval=(0.5, 1.0),
                 random_rotation=True,
                 window_size=self.cfg.window_size,
-                cache_dir=self.cfg.ntu120_3d_cache_dir,
+                cache_dir=self.cfg.ntu_3d_cache_dir,
             ),
             "ntu3d_test": NTU3DDataset(
-                self.cfg.ntu120_3d_path,
-                self.label_features["ntu120"],
+                self.cfg.ntu_3d_path,
+                self.label_features["ntu"],
                 split=self.cfg.ntu3d_eval_split,
                 p_interval=(0.95,),
                 random_rotation=False,
                 window_size=self.cfg.window_size,
-                cache_dir=self.cfg.ntu120_3d_cache_dir,
+                cache_dir=self.cfg.ntu_3d_cache_dir,
             ),
             "ntu2d_train": NTU2DDataset(
-                self.cfg.ntu120_2d_path,
-                self.label_features["ntu120"],
-                self.cfg.ntu120_2d_mean_path,
-                self.cfg.ntu120_2d_std_path,
+                self.cfg.ntu_2d_path,
+                self.label_features["ntu"],
+                self.cfg.ntu_2d_mean_path,
+                self.cfg.ntu_2d_std_path,
                 split=self.cfg.ntu2d_train_split,
                 p_interval=(0.5, 1.0),
                 window_size=self.cfg.window_size,
                 normalization=self.cfg.normalization,
             ),
             "ntu2d_test": NTU2DDataset(
-                self.cfg.ntu120_2d_path,
-                self.label_features["ntu120"],
-                self.cfg.ntu120_2d_mean_path,
-                self.cfg.ntu120_2d_std_path,
+                self.cfg.ntu_2d_path,
+                self.label_features["ntu"],
+                self.cfg.ntu_2d_mean_path,
+                self.cfg.ntu_2d_std_path,
                 split=self.cfg.ntu2d_eval_split,
                 p_interval=(0.95,),
                 window_size=self.cfg.window_size,
@@ -135,6 +136,15 @@ class Trainer:
             self.datasets["ntu2d_train"],
             self.datasets["humanml3d_train"],
         ])
+        self.logger.info(
+            "Dataset sizes: "
+            f"{self.cfg.ntu_name}-3D train/test="
+            f"{len(self.datasets['ntu3d_train'])}/{len(self.datasets['ntu3d_test'])}, "
+            f"{self.cfg.ntu_name}-2D train/test="
+            f"{len(self.datasets['ntu2d_train'])}/{len(self.datasets['ntu2d_test'])}, "
+            "HumanML3D train/test="
+            f"{len(self.datasets['humanml3d_train'])}/{len(self.datasets['humanml3d_test'])}"
+        )
 
         self.data_loaders = {
             "train": DataLoader(train_dataset, batch_size=self.cfg.batch_size, num_workers=self.cfg.train_workers, shuffle=True),
@@ -278,8 +288,8 @@ class Trainer:
         }
 
     def evaluate(self, epoch):
-        acc_ntu3d = self.test_dataset(self.data_loaders["ntu3d_test"], self.label_features["ntu120"])
-        acc_ntu2d = self.test_dataset(self.data_loaders["ntu2d_test"], self.label_features["ntu120"])
+        acc_ntu3d = self.test_dataset(self.data_loaders["ntu3d_test"], self.label_features["ntu"])
+        acc_ntu2d = self.test_dataset(self.data_loaders["ntu2d_test"], self.label_features["ntu"])
         acc_humanml3d = self.test_humanml3d(self.data_loaders["humanml3d_test"], self.label_features["humanml3d"])
 
         self.writer.add_scalar("test/ntu3d", acc_ntu3d, epoch)

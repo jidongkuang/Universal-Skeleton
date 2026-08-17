@@ -6,10 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${REPO_ROOT}"
 
-: "${HUMANML3D_ROOT:?Please set HUMANML3D_ROOT.}"
-: "${HOV_NTU120_3D:?Please set HOV_NTU120_3D.}"
-: "${HOV_NTU120_2D:?Please set HOV_NTU120_2D.}"
-: "${HOV_NTU120_2D_MEAN:?Please set HOV_NTU120_2D_MEAN.}"
-: "${HOV_NTU120_2D_STD:?Please set HOV_NTU120_2D_STD.}"
+: "${HOV_NTU_NUM_CLASSES:=120}"
+export HOV_NTU_NUM_CLASSES
 
 python train.py

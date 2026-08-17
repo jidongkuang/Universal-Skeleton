@@ -68,6 +68,11 @@ class NTU3DDataset(torch.utils.data.Dataset):
             self.data_path, label_member, self.cache_dir
         )
         self.labels = np.where(labels > 0)[1]
+        if self.labels.size and self.labels.max() >= len(self.label_features):
+            raise ValueError(
+                f"NTU-3D contains label {self.labels.max()}, but only "
+                f"{len(self.label_features)} text labels were loaded"
+            )
 
         _, self.num_frames, flattened = self.data.shape
         if flattened != 2 * 25 * 3:
@@ -128,6 +133,13 @@ class NTU2DDataset(torch.utils.data.Dataset):
         split, annotations = data["split"], data["annotations"]
         selected = set(split[self.split])
         self.data = [item for item in annotations if item["frame_dir"] in selected]
+        if self.data:
+            max_label = max(item["label"] for item in self.data)
+            if max_label >= len(self.label_features):
+                raise ValueError(
+                    f"NTU-2D contains label {max_label}, but only "
+                    f"{len(self.label_features)} text labels were loaded"
+                )
         self.mean = np.load(self.mean_path)
         self.std = np.load(self.std_path)
 
