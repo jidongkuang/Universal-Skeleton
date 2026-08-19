@@ -7,7 +7,6 @@ from math import cos, pi
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -18,6 +17,7 @@ from datasets.ntu import NTU2DDataset, NTU3DDataset
 from datasets.unified_skeleton import BODY_PARTS
 from models.multi_stream_alignment import ContrastiveLoss, MultiStreamAlignmentModel
 from third_party import clip
+from utils.evaluation import evaluate_humanml3d, evaluate_single_label
 from utils.logger import build_logger
 from utils.text_prompt import TextCLIP, load_label_texts
 
@@ -121,6 +121,7 @@ class Trainer:
                 window_size=self.cfg.window_size,
                 p_interval=(0.5, 1.0),
                 normalization=self.cfg.normalization,
+                metadata_root=self.cfg.humanml3d_metadata_root,
             ),
             "humanml3d_test": HumanML3DEvalDataset(
                 self.cfg.humanml3d_root,
@@ -128,6 +129,7 @@ class Trainer:
                 window_size=self.cfg.window_size,
                 p_interval=(0.95,),
                 normalization=self.cfg.normalization,
+                metadata_root=self.cfg.humanml3d_metadata_root,
             ),
         }
 
@@ -278,76 +280,23 @@ class Trainer:
         self.logger.info(f"epoch [{epoch}] loss: {epoch_loss:.4f}")
 
     def test_dataset(self, loader, label_features):
-        self.model.eval()
-        label_features = F.normalize(label_features.cuda(self.device), dim=-1)
-        total_correct = 0
-        total_samples = 0
-        for data, label, _ in tqdm(loader, desc="Eval dataset"):
-            data = data.type(torch.FloatTensor).cuda(self.device)
-            label = label.type(torch.LongTensor).cuda(self.device)
-            visual, _, _, _, _, _ = self.model(data, None)
-            visual = F.normalize(visual, dim=-1)
-            logits = visual @ label_features.t()
-            preds = logits.argmax(dim=1)
-            total_correct += (preds == label).sum().item()
-            total_samples += label.size(0)
-        return total_correct / total_samples
+        return evaluate_single_label(
+            self.model,
+            loader,
+            label_features,
+            torch.device(f"cuda:{self.device}"),
+        )
 
     def test_humanml3d(self, loader, label_features):
-        self.model.eval()
-        label_features = F.normalize(label_features.cuda(self.device), dim=-1)
-
-        total_correct = 0
-        total_samples = 0
-        total_preds_in_head = correct_preds_in_head = 0
-        total_preds_in_medium = correct_preds_in_medium = 0
-        total_preds_in_tail = correct_preds_in_tail = 0
-
-        for data, multi_hot in tqdm(loader, desc="Eval HumanML3D"):
-            data = data.type(torch.FloatTensor).cuda(self.device)
-            multi_hot = multi_hot.type(torch.float32).cuda(self.device)
-            visual, _, _, _, _, _ = self.model(data, None)
-            visual = F.normalize(visual, dim=-1)
-            logits = visual @ label_features.t()
-            preds = logits.argmax(dim=1)
-            correct_mask = multi_hot.gather(1, preds.unsqueeze(1)).squeeze(1)
-            total_correct += correct_mask.sum().item()
-            total_samples += multi_hot.size(0)
-
-            for i in range(multi_hot.size(0)):
-                predicted_label_id = preds[i].item()
-                is_correct = correct_mask[i].item() > 0.5
-                if predicted_label_id in self.head_ids:
-                    total_preds_in_head += 1
-                    if is_correct:
-                        correct_preds_in_head += 1
-                elif predicted_label_id in self.medium_ids:
-                    total_preds_in_medium += 1
-                    if is_correct:
-                        correct_preds_in_medium += 1
-                elif predicted_label_id in self.tail_ids:
-                    total_preds_in_tail += 1
-                    if is_correct:
-                        correct_preds_in_tail += 1
-
-        return {
-            "overall_acc": total_correct / total_samples if total_samples > 0 else 0.0,
-            "head_acc": (
-                correct_preds_in_head / total_preds_in_head
-                if total_preds_in_head > 0
-                else 0.0
-            ),
-            "medium_acc": (
-                correct_preds_in_medium / total_preds_in_medium
-                if total_preds_in_medium > 0
-                else 0.0
-            ),
-            "tail_acc": (
-                correct_preds_in_tail / total_preds_in_tail
-                if total_preds_in_tail > 0
-                else 0.0
-            ),
-        }
+        return evaluate_humanml3d(
+            self.model,
+            loader,
+            label_features,
+            torch.device(f"cuda:{self.device}"),
+            self.head_ids,
+            self.medium_ids,
+            self.tail_ids,
+        )
 
     def evaluate(self, epoch):
         acc_ntu3d = self.test_dataset(

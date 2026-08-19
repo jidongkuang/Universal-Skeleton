@@ -53,6 +53,11 @@ class TrainConfig:
             "HUMANML3D_ROOT", repo_path("data", "HumanML3D")
         )
     )
+    humanml3d_metadata_root: Path = field(
+        default_factory=lambda: env_path(
+            "HOV_HUMANML3D_METADATA_ROOT", repo_path("data", "humanml3d")
+        )
+    )
     label_group_path: Path = field(
         default_factory=lambda: repo_path(
             "data", "annotations", "humanml3d_label_groups.json"

@@ -50,46 +50,31 @@ pip install -r requirements.txt
 
 ## Data Preparation
 
-Large datasets and generated caches are not distributed with this repository.
-Prepare the data in the following layout:
+Raw datasets and generated caches are not distributed with this repository.
+The HumanML3D 400-class annotations, fixed train/validation splits, label maps,
+and normalization statistics are included. Prepare the large source files in
+the following layout:
 
 ```text
 data/
-|-- annotations/
-|   `-- humanml3d_label_groups.json
-|-- text/
-|   |-- ntu120_label_map.txt
-|   `-- humanml3d400_label_map.txt
 |-- ntu/
-|   |-- NTU60_CS.npz
-|   `-- NTU120_CSub.npz
+|   `-- NTU60_CS.npz
 |-- nturgb/
 |   |-- ntu60_2d.pkl
 |   |-- ntu60_2d_Mean.npy
-|   |-- ntu60_2d_Std.npy
-|   |-- ntu120_hrnet.pkl
-|   |-- ntu120_2d_Mean.npy
-|   `-- ntu120_2d_Std.npy
+|   `-- ntu60_2d_Std.npy
 `-- HumanML3D/
-    |-- annotations_actions_400.json
-    |-- mean_std/
-    |   |-- new_Mean.npy
-    |   `-- new_Std.npy
     |-- new_joints/
-    |-- texts/
-    `-- split/
-        |-- new_train_longtail.txt
-        `-- new_val_longtail.txt
+    `-- texts/
 ```
 
-The annotation and label-map files under `data/annotations/` and `data/text/`
-are included. The remaining files must be prepared from the corresponding
-datasets because of size and redistribution restrictions.
+See [Data Preparation](docs/data_preparation.md) for official sources, expected
+schemas, split sizes, and path overrides.
 
-The default profile is NTU-120. Set `HOV_NTU_NUM_CLASSES=60` for NTU-60.
 Dataset paths can be overridden with `HOV_NTU_3D`, `HOV_NTU_2D`,
 `HOV_NTU_2D_MEAN`, `HOV_NTU_2D_STD`, `HOV_NTU_CACHE_DIR`, and
-`HUMANML3D_ROOT`; see `config.py` for all options.
+`HUMANML3D_ROOT`; see `config.py` for all options. Profile-specific names such
+as `HOV_NTU60_3D` are also supported.
 
 ## Unified Skeleton Representation
 
@@ -123,16 +108,16 @@ an NW-UCLA loader.
 
 ## Training
 
-Run the default NTU-120 + HumanML3D configuration:
+Run the NTU-60 3D + NTU-60 2D + HumanML3D configuration:
 
 ```bash
-bash scripts/train_main.sh
+bash scripts/train_table2.sh
 ```
 
-Run the NTU-60 x-sub configuration:
+The general training entry also supports the NTU-120 profile:
 
 ```bash
-HOV_NTU_NUM_CLASSES=60 bash scripts/train_main.sh
+HOV_NTU_NUM_CLASSES=120 bash scripts/train_main.sh
 ```
 
 Set the output directory or GPU through environment variables when needed:
@@ -144,6 +129,37 @@ HOV_NTU_NUM_CLASSES=60 python train.py
 
 Logs and checkpoints are written to `work_dirs/` by default.
 
+## Pretrained Model
+
+The epoch-360 checkpoint is stored separately because of its size:
+
+| File | Download | Size | SHA256 |
+|---|---|---:|---|
+| `universal_skeleton_ntu60_humanml3d_epoch360.pth` | [Google Drive](https://drive.google.com/file/d/17J3wiBKD0vpyJZSu7wlnIcn3u8cBouQh/view?usp=sharing) | 306,534,726 bytes | `6a8861948728df8c44a8949a3d9b68a20e6bcdf245593bd74fd46fbc3959fc09` |
+
+Verify the checksum before evaluation.
+
+## Evaluation
+
+After preparing the datasets and downloading the checkpoint, run:
+
+```bash
+bash scripts/eval_table2.sh \
+  /path/to/universal_skeleton_ntu60_humanml3d_epoch360.pth
+```
+
+The command evaluates one checkpoint on all three test sets and writes the
+same metrics to `work_dirs/table2_eval.json`. With seed 0, the expected output
+is:
+
+| NTU-60 3D | NTU-60 2D | HumanML3D | Many-shot | Medium-shot | Few-shot |
+|---:|---:|---:|---:|---:|---:|
+| 87.2202 | 90.4834 | 62.7656 | 72.5089 | 53.7938 | 49.6440 |
+
+The first two columns use the NTU-60 cross-subject split. HumanML3D uses the
+included validation split and accepts a prediction when it matches any label
+assigned to the motion.
+
 ## Tests
 
 ```bash
@@ -151,7 +167,8 @@ python -m unittest discover -s tests -v
 ```
 
 The tests cover source-to-unified mappings, kinematic imputation, data shapes,
-cache validation, NTU profiles, text labels, model inputs, and bone topology.
+cache validation, NTU profiles, text labels, model inputs, checkpoint loading,
+evaluation interfaces, and bone topology.
 
 ## Acknowledgements
 

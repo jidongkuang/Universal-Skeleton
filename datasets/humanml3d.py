@@ -1,5 +1,7 @@
 import codecs as cs
+import gzip
 import json
+import os
 import random
 import warnings
 from collections import Counter
@@ -41,6 +43,24 @@ def _unify_smpl_motion(motion):
     return skeleton.coordinates.transpose(3, 0, 2, 1)
 
 
+def _load_action_annotations(metadata_root):
+    json_path = pjoin(metadata_root, "annotations_actions_400.json")
+    gzip_path = f"{json_path}.gz"
+    if os.path.isfile(json_path):
+        opener = open
+        annotation_path = json_path
+    elif os.path.isfile(gzip_path):
+        opener = gzip.open
+        annotation_path = gzip_path
+    else:
+        raise FileNotFoundError(
+            "HumanML3D action annotations not found at "
+            f"{json_path} or {gzip_path}"
+        )
+    with opener(annotation_path, "rb") as file:
+        return orjson.loads(file.read())
+
+
 def load_label_groups(classification_file_path):
     with open(classification_file_path, "r", encoding="utf-8") as file:
         data = json.load(file)
@@ -61,8 +81,10 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
         p_interval=(0.5, 1.0),
         unit_length=4,
         normalization=True,
+        metadata_root=None,
     ):
         self.data_root = str(data_root)
+        self.metadata_root = str(metadata_root or data_root)
         self.label_features = label_features.detach().cpu().numpy()
         self.window_size = window_size
         self.p_interval = list(p_interval)
@@ -74,11 +96,12 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
         self.dataset_name = "t2m"
         self.motion_dir = pjoin(self.data_root, "new_joints")
         self.text_dir = pjoin(self.data_root, "texts")
-        self.meta_dir = pjoin(self.data_root, "mean_std")
-        self.split_file = pjoin(self.data_root, "split", f"new_{split}_longtail.txt")
+        self.meta_dir = pjoin(self.metadata_root, "mean_std")
+        self.split_file = pjoin(
+            self.metadata_root, "split", f"new_{split}_longtail.txt"
+        )
 
-        with open(pjoin(self.data_root, "annotations_actions_400.json"), "rb") as ff:
-            self.annotations_actions = orjson.loads(ff.read())
+        self.annotations_actions = _load_action_annotations(self.metadata_root)
 
         self.mean = np.load(pjoin(self.meta_dir, "new_Mean.npy"))
         self.std = np.load(pjoin(self.meta_dir, "new_Std.npy"))
@@ -215,8 +238,10 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
         p_interval=(0.95,),
         unit_length=4,
         normalization=True,
+        metadata_root=None,
     ):
         self.data_root = str(data_root)
+        self.metadata_root = str(metadata_root or data_root)
         self.window_size = window_size
         self.p_interval = list(p_interval)
         self.unit_length = unit_length
@@ -226,11 +251,12 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
         self.pointer = 0
         self.motion_dir = pjoin(self.data_root, "new_joints")
         self.text_dir = pjoin(self.data_root, "texts")
-        self.meta_dir = pjoin(self.data_root, "mean_std")
-        self.split_file = pjoin(self.data_root, "split", f"new_{split}_longtail.txt")
+        self.meta_dir = pjoin(self.metadata_root, "mean_std")
+        self.split_file = pjoin(
+            self.metadata_root, "split", f"new_{split}_longtail.txt"
+        )
 
-        with open(pjoin(self.data_root, "annotations_actions_400.json"), "rb") as ff:
-            self.annotations_actions = orjson.loads(ff.read())
+        self.annotations_actions = _load_action_annotations(self.metadata_root)
 
         self.mean = np.load(pjoin(self.meta_dir, "new_Mean.npy"))
         self.std = np.load(pjoin(self.meta_dir, "new_Std.npy"))

@@ -20,3 +20,7 @@ data/HumanML3D/
 data/ntu/
 data/nturgb/*.pkl
 data/nturgb/*.npy
+
+!data/humanml3d/mean_std/*.npy
+!data/nturgb/ntu60_2d_Mean.npy
+!data/nturgb/ntu60_2d_Std.npy
