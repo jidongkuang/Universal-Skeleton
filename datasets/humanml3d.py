@@ -1,6 +1,8 @@
 import codecs as cs
 import json
 import random
+import warnings
+from collections import Counter
 from os.path import join as pjoin
 
 import numpy as np
@@ -11,6 +13,22 @@ from tqdm import tqdm
 from datasets import param_util
 from datasets.transforms import valid_crop_resize
 from datasets.unified_skeleton import canonicalize, replicate_people
+
+
+EXPECTED_DATA_ERRORS = (IndexError, KeyError, OSError, ValueError)
+
+
+def _warn_skipped_samples(split_file, skipped_errors):
+    if not skipped_errors:
+        return
+    summary = ", ".join(
+        f"{error_name}={count}"
+        for error_name, count in sorted(skipped_errors.items())
+    )
+    warnings.warn(
+        f"Skipped malformed HumanML3D samples listed in {split_file}: {summary}",
+        stacklevel=2,
+    )
 
 
 def _unify_smpl_motion(motion):
@@ -45,7 +63,7 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
         normalization=True,
     ):
         self.data_root = str(data_root)
-        self.label_features = label_features.numpy()
+        self.label_features = label_features.detach().cpu().numpy()
         self.window_size = window_size
         self.p_interval = list(p_interval)
         self.unit_length = unit_length
@@ -76,6 +94,7 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
 
         new_name_list = []
         length_list = []
+        skipped_errors = Counter()
         min_motion_len = 40
         fps = 20
 
@@ -105,27 +124,49 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
                             flag = True
                             text_data.append(text_dict)
                         else:
-                            try:
-                                n_motion = motion[int(f_tag * fps): int(to_tag * fps)]
-                                if len(n_motion) < min_motion_len or len(n_motion) >= 200:
-                                    continue
-                                new_name = random.choice("ABCDEFGHIJKLMNOPQRSTUVW") + "_" + name
-                                while new_name in data_dict:
-                                    new_name = random.choice("ABCDEFGHIJKLMNOPQRSTUVW") + "_" + name
-                                data_dict[new_name] = {"motion": n_motion, "length": len(n_motion), "text": [text_dict]}
-                                new_name_list.append(new_name)
-                                length_list.append(len(n_motion))
-                            except Exception:
+                            motion_segment = motion[
+                                int(f_tag * fps): int(to_tag * fps)
+                            ]
+                            if (
+                                len(motion_segment) < min_motion_len
+                                or len(motion_segment) >= 200
+                            ):
                                 continue
+                            new_name = (
+                                random.choice("ABCDEFGHIJKLMNOPQRSTUVW")
+                                + "_"
+                                + name
+                            )
+                            while new_name in data_dict:
+                                new_name = (
+                                    random.choice("ABCDEFGHIJKLMNOPQRSTUVW")
+                                    + "_"
+                                    + name
+                                )
+                            data_dict[new_name] = {
+                                "motion": motion_segment,
+                                "length": len(motion_segment),
+                                "text": [text_dict],
+                            }
+                            new_name_list.append(new_name)
+                            length_list.append(len(motion_segment))
 
                 if flag:
-                    data_dict[name] = {"motion": motion, "length": len(motion), "text": text_data}
+                    data_dict[name] = {
+                        "motion": motion,
+                        "length": len(motion),
+                        "text": text_data,
+                    }
                     new_name_list.append(name)
                     length_list.append(len(motion))
-            except Exception:
+            except EXPECTED_DATA_ERRORS as error:
+                skipped_errors[type(error).__name__] += 1
                 continue
 
-        self.name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
+        _warn_skipped_samples(self.split_file, skipped_errors)
+        self.name_list, length_list = zip(
+            *sorted(zip(new_name_list, length_list), key=lambda item: item[1])
+        )
         self.length_arr = np.array(length_list)
         self.data_dict = data_dict
         self.reset_max_len(self.max_length)
@@ -159,7 +200,9 @@ class HumanML3DTrainDataset(torch.utils.data.Dataset):
 
         data_numpy = _unify_smpl_motion(motion)
         label_feature = self.label_features[label]
-        data_numpy = valid_crop_resize(data_numpy, m_length, self.p_interval, self.window_size)
+        data_numpy = valid_crop_resize(
+            data_numpy, m_length, self.p_interval, self.window_size
+        )
         return data_numpy, label, label_feature
 
 
@@ -202,6 +245,7 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
 
         new_name_list = []
         length_list = []
+        skipped_errors = Counter()
         min_motion_len = 40
         fps = 20
 
@@ -221,33 +265,58 @@ class HumanML3DEvalDataset(torch.utils.data.Dataset):
                         to_tag = float(line_split[3])
                         f_tag = 0.0 if np.isnan(f_tag) else f_tag
                         to_tag = 0.0 if np.isnan(to_tag) else to_tag
-                        text_dict = {"label_list": action["labels"], "tokens": line_split[1].split(" ")}
+                        text_dict = {
+                            "label_list": action["labels"],
+                            "tokens": line_split[1].split(" "),
+                        }
 
                         if f_tag == 0.0 and to_tag == 0.0:
                             flag = True
                             text_data.append(text_dict)
                         else:
-                            try:
-                                n_motion = motion[int(f_tag * fps): int(to_tag * fps)]
-                                if len(n_motion) < min_motion_len or len(n_motion) >= 200:
-                                    continue
-                                new_name = random.choice("ABCDEFGHIJKLMNOPQRSTUVW") + "_" + name
-                                while new_name in data_dict:
-                                    new_name = random.choice("ABCDEFGHIJKLMNOPQRSTUVW") + "_" + name
-                                data_dict[new_name] = {"motion": n_motion, "length": len(n_motion), "text": [text_dict]}
-                                new_name_list.append(new_name)
-                                length_list.append(len(n_motion))
-                            except Exception:
+                            motion_segment = motion[
+                                int(f_tag * fps): int(to_tag * fps)
+                            ]
+                            if (
+                                len(motion_segment) < min_motion_len
+                                or len(motion_segment) >= 200
+                            ):
                                 continue
+                            new_name = (
+                                random.choice("ABCDEFGHIJKLMNOPQRSTUVW")
+                                + "_"
+                                + name
+                            )
+                            while new_name in data_dict:
+                                new_name = (
+                                    random.choice("ABCDEFGHIJKLMNOPQRSTUVW")
+                                    + "_"
+                                    + name
+                                )
+                            data_dict[new_name] = {
+                                "motion": motion_segment,
+                                "length": len(motion_segment),
+                                "text": [text_dict],
+                            }
+                            new_name_list.append(new_name)
+                            length_list.append(len(motion_segment))
 
                 if flag:
-                    data_dict[name] = {"motion": motion, "length": len(motion), "text": text_data}
+                    data_dict[name] = {
+                        "motion": motion,
+                        "length": len(motion),
+                        "text": text_data,
+                    }
                     new_name_list.append(name)
                     length_list.append(len(motion))
-            except Exception:
+            except EXPECTED_DATA_ERRORS as error:
+                skipped_errors[type(error).__name__] += 1
                 continue
 
-        self.name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
+        _warn_skipped_samples(self.split_file, skipped_errors)
+        self.name_list, length_list = zip(
+            *sorted(zip(new_name_list, length_list), key=lambda item: item[1])
+        )
         self.length_arr = np.array(length_list)
         self.data_dict = data_dict
         self.reset_max_len(self.max_length)

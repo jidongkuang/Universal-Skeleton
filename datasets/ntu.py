@@ -12,18 +12,37 @@ from datasets.unified_skeleton import canonicalize, replicate_people
 
 
 def _extract_npz_member(npz_path, member_name, cache_dir):
+    npz_path = Path(npz_path)
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     target = cache_dir / member_name
-    if target.exists():
-        return target
-
-    temporary = cache_dir / f"{member_name}.tmp.{os.getpid()}"
-    print(f"Extracting {member_name} from {npz_path} to {target}", flush=True)
     with zipfile.ZipFile(npz_path, "r") as archive:
-        with archive.open(member_name, "r") as source, open(temporary, "wb") as output:
-            shutil.copyfileobj(source, output, length=64 * 1024 * 1024)
-    os.replace(temporary, target)
+        try:
+            expected_size = archive.getinfo(member_name).file_size
+        except KeyError as error:
+            raise ValueError(
+                f"{npz_path} does not contain required member {member_name!r}"
+            ) from error
+
+        if target.is_file() and target.stat().st_size == expected_size:
+            return target
+        if target.exists() and not target.is_file():
+            raise ValueError(f"cache target is not a regular file: {target}")
+
+        temporary = cache_dir / f"{member_name}.tmp.{os.getpid()}"
+        print(f"Extracting {member_name} from {npz_path} to {target}", flush=True)
+        try:
+            with archive.open(member_name, "r") as source, open(
+                temporary, "wb"
+            ) as output:
+                shutil.copyfileobj(source, output, length=64 * 1024 * 1024)
+            if temporary.stat().st_size != expected_size:
+                raise OSError(
+                    f"incomplete extraction of {member_name} from {npz_path}"
+                )
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
     return target
 
 
@@ -45,12 +64,16 @@ class NTU3DDataset(torch.utils.data.Dataset):
         cache_dir=None,
     ):
         self.data_path = str(data_path)
-        self.label_features = label_features.numpy()
+        self.label_features = label_features.detach().cpu().numpy()
         self.split = split
         self.window_size = window_size
         self.p_interval = list(p_interval)
         self.random_rotation = random_rotation
-        self.cache_dir = Path(cache_dir) if cache_dir is not None else Path(self.data_path).with_suffix("")
+        self.cache_dir = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else Path(self.data_path).with_suffix("")
+        )
         self._load_data()
 
     def _load_data(self):
@@ -67,7 +90,25 @@ class NTU3DDataset(torch.utils.data.Dataset):
         labels = _load_npz_member_mmap(
             self.data_path, label_member, self.cache_dir
         )
-        self.labels = np.where(labels > 0)[1]
+        if self.data.ndim != 3:
+            raise ValueError(f"unexpected NTU-3D data shape {self.data.shape}")
+        if labels.ndim != 2:
+            raise ValueError(f"unexpected NTU-3D label shape {labels.shape}")
+        if len(self.data) != len(labels):
+            raise ValueError(
+                "NTU-3D data and label files contain different sample counts"
+            )
+
+        positive_labels = labels > 0
+        labels_per_sample = positive_labels.sum(axis=1)
+        if not np.all(labels_per_sample == 1):
+            invalid_index = int(np.flatnonzero(labels_per_sample != 1)[0])
+            raise ValueError(
+                "NTU-3D labels must be one-hot; "
+                f"sample {invalid_index} has {labels_per_sample[invalid_index]} "
+                "positive entries"
+            )
+        self.labels = positive_labels.argmax(axis=1).astype(np.int64, copy=False)
         if self.labels.size and self.labels.max() >= len(self.label_features):
             raise ValueError(
                 f"NTU-3D contains label {self.labels.max()}, but only "
@@ -94,7 +135,9 @@ class NTU3DDataset(torch.utils.data.Dataset):
         data_numpy = skeleton.coordinates.transpose(3, 0, 2, 1)
         label = self.labels[index]
         label_feature = self.label_features[label]
-        data_numpy = valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
+        data_numpy = valid_crop_resize(
+            data_numpy, valid_frame_num, self.p_interval, self.window_size
+        )
         if self.random_rotation:
             data_numpy = random_rot(data_numpy)
         return data_numpy, label, label_feature
@@ -114,7 +157,7 @@ class NTU2DDataset(torch.utils.data.Dataset):
         score_threshold=0.0,
     ):
         self.data_path = str(data_path)
-        self.label_features = label_features.numpy()
+        self.label_features = label_features.detach().cpu().numpy()
         self.mean_path = str(mean_path)
         self.std_path = str(std_path)
         self.split = split
@@ -134,7 +177,11 @@ class NTU2DDataset(torch.utils.data.Dataset):
         selected = set(split[self.split])
         self.data = [item for item in annotations if item["frame_dir"] in selected]
         if self.data:
-            max_label = max(item["label"] for item in self.data)
+            labels = [item["label"] for item in self.data]
+            min_label = min(labels)
+            max_label = max(labels)
+            if min_label < 0:
+                raise ValueError(f"NTU-2D contains negative label {min_label}")
             if max_label >= len(self.label_features):
                 raise ValueError(
                     f"NTU-2D contains label {max_label}, but only "
@@ -173,5 +220,7 @@ class NTU2DDataset(torch.utils.data.Dataset):
         label = item["label"]
         label_feature = self.label_features[label]
         valid_frame_num = item["total_frames"]
-        data_numpy = valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
+        data_numpy = valid_crop_resize(
+            data_numpy, valid_frame_num, self.p_interval, self.window_size
+        )
         return data_numpy, label, label_feature

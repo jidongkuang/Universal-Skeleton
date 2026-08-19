@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: "Kuang"
     given-names: "Jidong"
-repository-code: "https://github.com/jidongkuang/universal-skeleton-action-recognition"
+repository-code: "https://github.com/jidongkuang/Universal-Skeleton"
 abstract: "PyTorch implementation of Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies."
 keywords:
   - skeleton-based action recognition

@@ -1,211 +1,184 @@
-# Universal Skeleton Action Recognition
+<h1 align="center">Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies</h1>
 
-PyTorch implementation of **Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies**.
+<p align="center">
+  Jidong Kuang &middot; Hongsong Wang &middot; Jie Gui &middot; Yuan Yan Tang &middot; James Tin-Yau Kwok
+</p>
 
-This repository is a cleaned, GitHub-ready release of the main training pipeline used for universal skeleton-based action recognition under heterogeneous skeleton sources and open-vocabulary supervision.
+<p align="center">
+  <a href="https://arxiv.org/abs/2604.17013"><img src="https://img.shields.io/badge/arXiv-2604.17013-b31b1b?logo=arxiv&logoColor=white" alt="arXiv"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/Python-3.9-3776AB?logo=python&logoColor=white" alt="Python 3.9"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/PyTorch-2.1.1%2Bcu118-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch 2.1.1 with CUDA 11.8"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="MIT License"></a>
+</p>
 
-![Pipeline Overview](assets/pipeline_overview.png)
+Official PyTorch implementation of [**Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies**](https://arxiv.org/abs/2604.17013).
+
+## Pipeline
+
+<p align="center">
+  <img src="assets/pipeline_overview.png" width="95%" alt="Universal skeleton action recognition pipeline">
+  <br>
+  <b>Overview of heterogeneous skeleton unification and multi-grained motion-text alignment.</b>
+</p>
 
 ## Overview
 
-The released code focuses on the core setting described in the paper:
+This work studies action recognition across heterogeneous skeleton formats and
+open vocabularies. The released pipeline provides:
 
-- heterogeneous training across either `NTU RGB+D 60` or `NTU RGB+D 120`
-  (3D skeletons and 2D pose sequences) together with `HumanML3D`
-- a multi-stream spatio-temporal encoder
-- multi-grained motion-text alignment
-- long-tail multi-label evaluation on `HumanML3D`
+- a unified 31-joint representation for Kinect v1, Kinect v2, COCO-17, and
+  SMPL-22 skeletons;
+- deterministic kinematic imputation for joints absent from a source format;
+- joint, bone, and motion streams with a shared spatio-temporal Transformer;
+- global, stream-specific, and fine-grained motion-text alignment; and
+- joint training on NTU RGB+D 60/120 3D skeletons, 2D poses, and HumanML3D.
 
-## Highlights
+## Requirements
 
-- Minimal standalone research codebase instead of a full internal experiment dump
-- Standard project layout with separated `datasets`, `models`, `utils`, and `scripts`
-- Environment-variable-based dataset configuration for easier reproduction
-- Small metadata files included, while large datasets and checkpoints stay external
+The code was tested with:
 
-## Repository Structure
-
-```text
-.
-|-- assets/                   # figures and release assets
-|-- data/
-|   |-- annotations/          # label grouping metadata
-|   `-- text/                 # label text maps
-|-- datasets/                 # dataset loaders and preprocessing
-|   `-- unified_skeleton.py   # 31-joint mapping and kinematic imputation
-|-- models/                   # model definitions
-|-- scripts/                  # runnable shell entrypoints
-|-- third_party/clip/         # vendored CLIP implementation
-|-- utils/                    # logging, paths, prompt helpers
-|-- config.py                 # central experiment config
-|-- train.py                  # main training entry
-|-- requirements.txt
-`-- README.md
-```
-
-## Installation
+- Python 3.9
+- PyTorch 2.1.1 + CUDA 11.8
 
 ```bash
+git clone https://github.com/jidongkuang/Universal-Skeleton.git
+cd Universal-Skeleton
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Dataset Preparation
+## Data Preparation
 
-This repository does not bundle large datasets, pretrained checkpoints, or cached artifacts.  
-The default codebase assumes that datasets are organized under the repository-local `data/` directory.
-
-Recommended layout:
+Large datasets and generated caches are not distributed with this repository.
+Prepare the data in the following layout:
 
 ```text
 data/
-|-- cache/                                 # generated NTU-3D mmap cache
 |-- annotations/
-|   `-- humanml3d_label_groups.json        # included in this repo
+|   `-- humanml3d_label_groups.json
 |-- text/
-|   |-- ntu120_label_map.txt               # included in this repo
-|   `-- humanml3d400_label_map.txt         # included in this repo
+|   |-- ntu120_label_map.txt
+|   `-- humanml3d400_label_map.txt
 |-- ntu/
-|   |-- NTU60_CS.npz                       # NTU-60 x-sub, optional
-|   `-- NTU120_CSub.npz                    # NTU-120 x-sub, optional
+|   |-- NTU60_CS.npz
+|   `-- NTU120_CSub.npz
 |-- nturgb/
-|   |-- ntu60_2d.pkl                       # NTU-60 2D, optional
+|   |-- ntu60_2d.pkl
 |   |-- ntu60_2d_Mean.npy
 |   |-- ntu60_2d_Std.npy
-|   |-- ntu120_hrnet.pkl                   # NTU-120 2D, optional
+|   |-- ntu120_hrnet.pkl
 |   |-- ntu120_2d_Mean.npy
 |   `-- ntu120_2d_Std.npy
 `-- HumanML3D/
-    |-- annotations_actions_400.json       # to be prepared by user
+    |-- annotations_actions_400.json
     |-- mean_std/
-    |   |-- new_Mean.npy                   # to be prepared by user
-    |   `-- new_Std.npy                    # to be prepared by user
-    |-- new_joints/                        # to be prepared by user
-    |-- texts/                             # to be prepared by user
+    |   |-- new_Mean.npy
+    |   `-- new_Std.npy
+    |-- new_joints/
+    |-- texts/
     `-- split/
-        |-- new_train_longtail.txt         # to be prepared by user
-        `-- new_val_longtail.txt           # to be prepared by user
+        |-- new_train_longtail.txt
+        `-- new_val_longtail.txt
 ```
 
-The default profile is NTU-120. Set `HOV_NTU_NUM_CLASSES=60` to select the
-NTU-60 x-sub profile. On first use, the selected NTU-3D NPZ members are extracted
-into `data/cache/` and subsequently memory-mapped.
+The annotation and label-map files under `data/annotations/` and `data/text/`
+are included. The remaining files must be prepared from the corresponding
+datasets because of size and redistribution restrictions.
 
-The generic path overrides are `HOV_NTU_3D`, `HOV_NTU_2D`,
-`HOV_NTU_2D_MEAN`, `HOV_NTU_2D_STD`, and `HOV_NTU_CACHE_DIR`. The legacy
-profile-specific names such as `HOV_NTU60_3D` and `HOV_NTU120_3D` remain
-supported. `HUMANML3D_ROOT` selects the HumanML3D root.
+The default profile is NTU-120. Set `HOV_NTU_NUM_CLASSES=60` for NTU-60.
+Dataset paths can be overridden with `HOV_NTU_3D`, `HOV_NTU_2D`,
+`HOV_NTU_2D_MEAN`, `HOV_NTU_2D_STD`, `HOV_NTU_CACHE_DIR`, and
+`HUMANML3D_ROOT`; see `config.py` for all options.
 
 ## Unified Skeleton Representation
 
-All source formats are mapped to a fixed tensor with shape `(3, T, 31, 2)` before
-being passed to the shared encoder. Kinect v2 joints occupy unified indices
-`0-24`, COCO facial landmarks occupy `25-29`, and the SMPL upper-spine joint
-occupies index `30`. The complete source-to-unified correspondence is defined in
-`datasets/unified_skeleton.py`.
+Every source format is canonicalized to `(3, T, 31, 2)` before entering the
+shared encoder.
 
-The implementation supports the four formats described in the paper:
-
-| Source format | Native joints | Coordinates | Mapping key |
+| Source | Native joints | Coordinates | Mapping key |
 |---|---:|---:|---|
 | Kinect v1 / NW-UCLA | 20 | 3D | `kinect_v1_20` |
 | Kinect v2 / NTU | 25 | 3D | `kinect_v2_25` |
 | COCO pose / NTU-2D | 17 | 2D | `coco17` |
 | SMPL / HumanML3D | 22 | 3D | `smpl22` |
 
-For 2D inputs, the depth channel is set to zero. Missing joints are then filled
-with a deterministic, parameter-free program. Trunk joints are interpolated as
-midpoints, while terminal joints use
+For 2D inputs, the depth channel is zero. Missing trunk joints are interpolated,
+while terminal joints are extrapolated along the kinematic chain:
 
 ```text
 p_target = p_anchor + rho * (p_anchor - p_parent)
 ```
 
-with `rho=0.25` for hands, `0.15` for feet, `0.18` for hand tips, and
-`0.32` for thumbs. A 2D head is computed from the mean of its observed facial
-landmarks; absent 3D facial landmarks use the head as a proxy. Rules run in a
-fixed order, never overwrite observed joints, and execute only when all required
-anchors are valid. Sequences with one observed person replicate that person into
-the second member slot.
+We use `rho=0.25` for hands, `0.15` for feet, `0.18` for hand tips, and
+`0.32` for thumbs. Rules execute only when their anchors are valid and never
+overwrite observed joints. A single observed person is replicated into the
+second person slot. Validity masks guard the imputation process and are not
+passed to the encoder as gates or attention masks.
 
-The validity masks used by this preprocessing step only control imputation. They
-are not supplied to the encoder as reliability embeddings, gates, or attention
-masks.
-
-## Data Status
-
-Already included in this repository:
-
-- `data/annotations/humanml3d_label_groups.json`
-- `data/text/ntu120_label_map.txt`
-- `data/text/humanml3d400_label_map.txt`
-
-Not uploaded to this repository yet:
-
-- `data/ntu/NTU120_CSub.npz`
-- `data/ntu/NTU60_CS.npz`
-- `data/nturgb/ntu60_2d.pkl`
-- `data/nturgb/ntu60_2d_Mean.npy`
-- `data/nturgb/ntu60_2d_Std.npy`
-- `data/nturgb/ntu120_hrnet.pkl`
-- `data/nturgb/ntu120_2d_Mean.npy`
-- `data/nturgb/ntu120_2d_Std.npy`
-- `data/HumanML3D/annotations_actions_400.json`
-- `data/HumanML3D/mean_std/new_Mean.npy`
-- `data/HumanML3D/mean_std/new_Std.npy`
-- `data/HumanML3D/new_joints/`
-- `data/HumanML3D/texts/`
-- `data/HumanML3D/split/new_train_longtail.txt`
-- `data/HumanML3D/split/new_val_longtail.txt`
-
-These files are omitted from GitHub because of dataset size, preprocessing requirements, and redistribution constraints.
+The complete joint mapping, topology, and imputation program are defined in
+`datasets/unified_skeleton.py`. The main training entry directly loads Kinect
+v2, COCO-17, and SMPL data; the tested Kinect v1 mapping can be integrated with
+an NW-UCLA loader.
 
 ## Training
 
-Run the main training script with:
+Run the default NTU-120 + HumanML3D configuration:
 
 ```bash
 bash scripts/train_main.sh
 ```
 
-Or directly:
-
-```bash
-python train.py
-```
-
-For the NTU-60 x-sub experiment reported in the main paper:
+Run the NTU-60 x-sub configuration:
 
 ```bash
 HOV_NTU_NUM_CLASSES=60 bash scripts/train_main.sh
 ```
 
-The shared `ntu120_label_map.txt` is ordered according to the official NTU
-class indices. The NTU-60 profile uses exactly its first 60 entries, and both
-training and evaluation are checked against a 60-class candidate matrix.
+Set the output directory or GPU through environment variables when needed:
+
+```bash
+HOV_DEVICE=0 HOV_OUTPUT_DIR=work_dirs/ntu60 \
+HOV_NTU_NUM_CLASSES=60 python train.py
+```
 
 Logs and checkpoints are written to `work_dirs/` by default.
 
-Run the preprocessing and model contract tests with:
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-## Reproducibility Notes
+The tests cover source-to-unified mappings, kinematic imputation, data shapes,
+cache validation, NTU profiles, text labels, model inputs, and bone topology.
 
-- The current release keeps the main experiment path only and removes many internal ablation variants.
-- The released main configuration uses 31 unified joints, two person slots, four temporal segments, and four spatial body parts per person.
-- The project vendors the CLIP implementation under `third_party/clip/`.
-- Large datasets and generated artifacts are ignored by `.gitignore` so this folder can be used as a standalone GitHub repository.
+## Acknowledgements
 
-## Release Notes
+This repository includes the [CLIP](https://github.com/openai/CLIP) text
+encoder implementation. We thank the authors of NTU RGB+D, NW-UCLA, and
+HumanML3D for making their datasets available to the research community.
 
-- `assets/` currently contains placeholders for figures and method illustrations.
-- The repository metadata now points to the GitHub account `jidongkuang`.
-- Update the final arXiv URL in `CITATION.cff` before publishing.
+## License
+
+This project is released under the [MIT License](LICENSE).
 
 ## Citation
 
-See `CITATION.cff` for machine-readable citation metadata. Update the arXiv field before release.
+If you find this work useful, please cite:
+
+```bibtex
+@misc{kuang2026universalskeletonbasedactionrecognition,
+  title         = {Toward Universal Skeleton-Based Action Recognition across Heterogeneous Skeletons and Open Vocabularies},
+  author        = {Jidong Kuang and Hongsong Wang and Jie Gui and Yuan Yan Tang and James Tin-Yau Kwok},
+  year          = {2026},
+  eprint        = {2604.17013},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2604.17013}
+}
+```
+
+## Contact
+
+For questions, please contact `jidongkuang@seu.edu.cn`.

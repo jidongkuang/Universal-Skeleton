@@ -39,6 +39,57 @@ class DatasetShapeTest(unittest.TestCase):
             self.assertEqual(label_feature.shape, (768,))
             np.testing.assert_array_equal(output[..., 0], output[..., 1])
 
+    def test_ntu3d_loader_refreshes_truncated_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "ntu.npz"
+            cache_dir = root / "cache"
+            cache_dir.mkdir()
+            source = np.ones((1, 8, 2, 25, 3), dtype=np.float32)
+            labels = np.ones((1, 1), dtype=np.float32)
+            np.savez(
+                path,
+                x_train=source.reshape(1, 8, -1),
+                y_train=labels,
+                x_test=source.reshape(1, 8, -1),
+                y_test=labels,
+            )
+            (cache_dir / "x_train.npy").write_bytes(b"truncated")
+
+            dataset = NTU3DDataset(
+                path,
+                torch.zeros(1, 768),
+                split="train",
+                p_interval=(1.0,),
+                window_size=8,
+                cache_dir=cache_dir,
+            )
+
+            self.assertEqual(len(dataset), 1)
+            self.assertGreater((cache_dir / "x_train.npy").stat().st_size, 9)
+
+    def test_ntu3d_loader_rejects_non_one_hot_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ntu.npz"
+            source = np.ones((1, 8, 2, 25, 3), dtype=np.float32)
+            labels = np.ones((1, 2), dtype=np.float32)
+            np.savez(
+                path,
+                x_train=source.reshape(1, 8, -1),
+                y_train=labels,
+                x_test=source.reshape(1, 8, -1),
+                y_test=labels,
+            )
+
+            with self.assertRaisesRegex(ValueError, "must be one-hot"):
+                NTU3DDataset(
+                    path,
+                    torch.zeros(2, 768),
+                    split="train",
+                    p_interval=(1.0,),
+                    window_size=8,
+                )
+
     def test_ntu2d_loader_returns_unified_shape(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

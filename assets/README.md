@@ -1,16 +1,12 @@
 # Assets
 
-This directory is intended for GitHub-facing visual assets such as:
+This directory contains GitHub-facing visual assets.
 
-- overview figures
-- architecture diagrams
-- teaser images
-- benchmark tables exported as images
+Included:
 
-Suggested files for release:
+- `pipeline_overview.png`: overview figure used by the repository README
 
-- `pipeline_overview.png`
-- `model_architecture.png`
-- `dataset_overview.png`
+Additional architecture diagrams or benchmark visualizations can be added here
+when they are cleared for public release.
 
 Keep binary assets small enough for normal GitHub browsing.

@@ -38,6 +38,12 @@ class ModelShapeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected 31 joints"):
             self.model(torch.randn(1, 3, 8, 33, 2))
 
+    def test_unknown_modality_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unsupported modality"):
+            self.model._build_modality(
+                torch.randn(1, 3, 8, 31, 2), "unknown"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

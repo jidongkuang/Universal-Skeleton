@@ -13,7 +13,7 @@ from utils.paths import env_int, env_path, repo_path
 SUPPORTED_NTU_CLASS_COUNTS = (60, 120)
 
 
-def _profile_path(generic_env, profile_env, default):
+def _profile_path(generic_env: str, profile_env: str, default: Path) -> Path:
     return env_path(generic_env, env_path(profile_env, default))
 
 
@@ -35,17 +35,40 @@ class TrainConfig:
     save_checkpoints: bool = True
     normalization: bool = True
     clip_model_name: str = "ViT-L/14@336px"
-    output_dir: Path = field(default_factory=lambda: env_path("HOV_OUTPUT_DIR", repo_path("work_dirs", "hov_main")))
-    ntu_num_classes: int = field(default_factory=lambda: env_int("HOV_NTU_NUM_CLASSES", 120))
+    output_dir: Path = field(
+        default_factory=lambda: env_path(
+            "HOV_OUTPUT_DIR", repo_path("work_dirs", "hov_main")
+        )
+    )
+    ntu_num_classes: int = field(
+        default_factory=lambda: env_int("HOV_NTU_NUM_CLASSES", 120)
+    )
     ntu_3d_path: Optional[Path] = None
     ntu_3d_cache_dir: Optional[Path] = None
     ntu_2d_path: Optional[Path] = None
     ntu_2d_mean_path: Optional[Path] = None
     ntu_2d_std_path: Optional[Path] = None
-    humanml3d_root: Path = field(default_factory=lambda: env_path("HUMANML3D_ROOT", repo_path("data", "HumanML3D")))
-    label_group_path: Path = field(default_factory=lambda: repo_path("data", "annotations", "humanml3d_label_groups.json"))
-    ntu_label_map_path: Path = field(default_factory=lambda: env_path("HOV_NTU_LABEL_MAP", repo_path("data", "text", "ntu120_label_map.txt")))
-    humanml3d_label_map_path: Path = field(default_factory=lambda: repo_path("data", "text", "humanml3d400_label_map.txt"))
+    humanml3d_root: Path = field(
+        default_factory=lambda: env_path(
+            "HUMANML3D_ROOT", repo_path("data", "HumanML3D")
+        )
+    )
+    label_group_path: Path = field(
+        default_factory=lambda: repo_path(
+            "data", "annotations", "humanml3d_label_groups.json"
+        )
+    )
+    ntu_label_map_path: Path = field(
+        default_factory=lambda: env_path(
+            "HOV_NTU_LABEL_MAP",
+            repo_path("data", "text", "ntu120_label_map.txt"),
+        )
+    )
+    humanml3d_label_map_path: Path = field(
+        default_factory=lambda: repo_path(
+            "data", "text", "humanml3d400_label_map.txt"
+        )
+    )
     humanml3d_train_split: str = "train"
     humanml3d_eval_split: str = "val"
     ntu3d_train_split: str = "train"
@@ -59,6 +82,12 @@ class TrainConfig:
             raise ValueError(
                 f"ntu_num_classes must be one of {SUPPORTED_NTU_CLASS_COUNTS}, "
                 f"got {self.ntu_num_classes}"
+            )
+        if self.num_temporal_segments <= 0:
+            raise ValueError("num_temporal_segments must be positive")
+        if self.window_size % self.num_temporal_segments != 0:
+            raise ValueError(
+                "window_size must be divisible by num_temporal_segments"
             )
 
         if self.ntu_num_classes == 60:

@@ -35,20 +35,26 @@ class ConfigAndTextTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be one of"):
             TrainConfig(ntu_num_classes=61)
 
+    def test_temporal_segments_must_evenly_partition_window(self):
+        with self.assertRaisesRegex(ValueError, "must be divisible"):
+            TrainConfig(window_size=127, num_temporal_segments=4)
+
     def test_ntu60_text_candidates_are_first_60_labels(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ntu_path = root / "ntu.txt"
             humanml3d_path = root / "humanml3d.txt"
             ntu_path.write_text("\n".join(f"action {i}" for i in range(120)))
-            humanml3d_path.write_text("walk\nrun\n")
+            humanml3d_path.write_text(
+                "\n".join(f"motion {i}" for i in range(400))
+            )
 
             ntu_tokens, humanml3d_tokens = load_label_texts(
                 ntu_path, humanml3d_path, 60
             )
 
         self.assertEqual(ntu_tokens.shape, (60, 77))
-        self.assertEqual(humanml3d_tokens.shape, (2, 77))
+        self.assertEqual(humanml3d_tokens.shape, (400, 77))
 
     def test_short_ntu_label_map_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -56,10 +62,36 @@ class ConfigAndTextTest(unittest.TestCase):
             ntu_path = root / "ntu.txt"
             humanml3d_path = root / "humanml3d.txt"
             ntu_path.write_text("walk\nrun\n")
-            humanml3d_path.write_text("walk\n")
+            humanml3d_path.write_text(
+                "\n".join(f"motion {i}" for i in range(400))
+            )
 
             with self.assertRaisesRegex(ValueError, "2 labels"):
                 load_label_texts(ntu_path, humanml3d_path, 60)
+
+    def test_humanml3d_label_count_is_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ntu_path = root / "ntu.txt"
+            humanml3d_path = root / "humanml3d.txt"
+            ntu_path.write_text("\n".join(f"action {i}" for i in range(120)))
+            humanml3d_path.write_text("walk\nrun\n")
+
+            with self.assertRaisesRegex(ValueError, "has 2 labels"):
+                load_label_texts(ntu_path, humanml3d_path, 60)
+
+    def test_empty_label_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ntu_path = root / "ntu.txt"
+            humanml3d_path = root / "humanml3d.txt"
+            ntu_path.write_text("walk\n\nrun\n")
+            humanml3d_path.write_text(
+                "\n".join(f"motion {i}" for i in range(400))
+            )
+
+            with self.assertRaisesRegex(ValueError, "empty label at line 2"):
+                load_label_texts(ntu_path, humanml3d_path, 2)
 
 
 if __name__ == "__main__":

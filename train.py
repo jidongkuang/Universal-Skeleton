@@ -147,10 +147,30 @@ class Trainer:
         )
 
         self.data_loaders = {
-            "train": DataLoader(train_dataset, batch_size=self.cfg.batch_size, num_workers=self.cfg.train_workers, shuffle=True),
-            "ntu3d_test": DataLoader(self.datasets["ntu3d_test"], batch_size=self.cfg.eval_batch_size, num_workers=self.cfg.eval_workers, shuffle=False),
-            "ntu2d_test": DataLoader(self.datasets["ntu2d_test"], batch_size=self.cfg.eval_batch_size, num_workers=self.cfg.eval_workers, shuffle=False),
-            "humanml3d_test": DataLoader(self.datasets["humanml3d_test"], batch_size=self.cfg.eval_batch_size, num_workers=self.cfg.eval_workers, shuffle=False),
+            "train": DataLoader(
+                train_dataset,
+                batch_size=self.cfg.batch_size,
+                num_workers=self.cfg.train_workers,
+                shuffle=True,
+            ),
+            "ntu3d_test": DataLoader(
+                self.datasets["ntu3d_test"],
+                batch_size=self.cfg.eval_batch_size,
+                num_workers=self.cfg.eval_workers,
+                shuffle=False,
+            ),
+            "ntu2d_test": DataLoader(
+                self.datasets["ntu2d_test"],
+                batch_size=self.cfg.eval_batch_size,
+                num_workers=self.cfg.eval_workers,
+                shuffle=False,
+            ),
+            "humanml3d_test": DataLoader(
+                self.datasets["humanml3d_test"],
+                batch_size=self.cfg.eval_batch_size,
+                num_workers=self.cfg.eval_workers,
+                shuffle=False,
+            ),
         }
 
     def load_model(self):
@@ -163,13 +183,18 @@ class Trainer:
             self.cfg.num_joints,
             self.cfg.num_people,
         ).cuda(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.learning_rate, weight_decay=self.cfg.weight_decay)
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=self.cfg.learning_rate,
+            weight_decay=self.cfg.weight_decay,
+        )
 
     def adjust_learning_rate(self, epoch):
         if epoch < 15:
             lr = self.cfg.learning_rate * epoch / 15
         else:
-            lr = (self.cfg.learning_rate) * (1 + cos(pi * (epoch - 15) / (self.cfg.epochs - 15))) / 2
+            schedule = cos(pi * (epoch - 15) / (self.cfg.epochs - 15))
+            lr = self.cfg.learning_rate * (1 + schedule) / 2
         for group in self.optimizer.param_groups:
             group["lr"] = lr
         self.writer.add_scalar("train/lr", lr, epoch)
@@ -183,25 +208,42 @@ class Trainer:
     def train_one_epoch(self, epoch):
         self.model.train()
         self.adjust_learning_rate(epoch)
-        running_loss = []
+        running_loss = torch.zeros((), device=f"cuda:{self.device}")
+        num_batches = 0
 
-        for data, _, label_text in tqdm(self.data_loaders["train"], desc=f"Train {epoch}"):
+        for data, _, label_text in tqdm(
+            self.data_loaders["train"], desc=f"Train {epoch}"
+        ):
             data = data.type(torch.FloatTensor).cuda(self.device)
             label_text = label_text.cuda(self.device)
 
-            visual, text, visual_t, visual_s, t_out, s_out = self.model(data, label_text)
-            visual_t = self.model.temporal_projector(visual_t)
-            visual_s = self.model.spatial_projector(visual_s)
+            (
+                visual,
+                text_features,
+                temporal_global,
+                spatial_global,
+                temporal_tokens,
+                spatial_tokens,
+            ) = self.model(data, label_text)
+            temporal_global = self.model.temporal_projector(temporal_global)
+            spatial_global = self.model.spatial_projector(spatial_global)
 
-            loss_local = (self.loss_fn(visual_t, label_text) + self.loss_fn(visual_s, label_text)) * 0.5
-            loss_ts_consistency = self.loss_fn(visual_t, visual_s)
+            loss_local = (
+                self.loss_fn(temporal_global, label_text)
+                + self.loss_fn(spatial_global, label_text)
+            ) * 0.5
+            loss_ts_consistency = self.loss_fn(temporal_global, spatial_global)
 
             loss_temporal_segments = 0
-            segment_len = t_out.shape[1] // self.cfg.num_temporal_segments
+            segment_len = temporal_tokens.shape[1] // self.cfg.num_temporal_segments
             for i in range(self.cfg.num_temporal_segments):
-                temporal_segment = t_out[:, i * segment_len:(i + 1) * segment_len, :].amax(dim=1)
+                temporal_segment = temporal_tokens[
+                    :, i * segment_len:(i + 1) * segment_len, :
+                ].amax(dim=1)
                 projected_segment = self.model.temporal_projector(temporal_segment)
-                loss_temporal_segments += self.loss_fn(projected_segment, text)
+                loss_temporal_segments += self.loss_fn(
+                    projected_segment, text_features
+                )
             loss_temporal_segments /= self.cfg.num_temporal_segments
 
             loss_spatial_parts = 0
@@ -210,20 +252,28 @@ class Trainer:
                     token_indices = [
                         joint + person * self.cfg.num_joints for joint in indices
                     ]
-                    part_features = s_out[:, token_indices, :].amax(dim=1)
+                    part_features = spatial_tokens[:, token_indices, :].amax(dim=1)
                     projected_part = self.model.spatial_projector(part_features)
-                    loss_spatial_parts += self.loss_fn(projected_part, text)
+                    loss_spatial_parts += self.loss_fn(
+                        projected_part, text_features
+                    )
             loss_spatial_parts /= self.cfg.num_people * len(BODY_PARTS)
 
             loss_ts_parts = (loss_temporal_segments + loss_spatial_parts) / 2
-            loss = self.loss_fn(visual, text) + loss_local + 0.2 * loss_ts_consistency + 0.5 * loss_ts_parts
+            loss = (
+                self.loss_fn(visual, text_features)
+                + loss_local
+                + 0.2 * loss_ts_consistency
+                + 0.5 * loss_ts_parts
+            )
 
-            running_loss.append(loss.detach())
+            running_loss += loss.detach()
+            num_batches += 1
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-        epoch_loss = torch.stack(running_loss).mean().item()
+        epoch_loss = (running_loss / num_batches).item()
         self.writer.add_scalar("train/loss", epoch_loss, epoch)
         self.logger.info(f"epoch [{epoch}] loss: {epoch_loss:.4f}")
 
@@ -282,15 +332,34 @@ class Trainer:
 
         return {
             "overall_acc": total_correct / total_samples if total_samples > 0 else 0.0,
-            "head_acc": correct_preds_in_head / total_preds_in_head if total_preds_in_head > 0 else 0.0,
-            "medium_acc": correct_preds_in_medium / total_preds_in_medium if total_preds_in_medium > 0 else 0.0,
-            "tail_acc": correct_preds_in_tail / total_preds_in_tail if total_preds_in_tail > 0 else 0.0,
+            "head_acc": (
+                correct_preds_in_head / total_preds_in_head
+                if total_preds_in_head > 0
+                else 0.0
+            ),
+            "medium_acc": (
+                correct_preds_in_medium / total_preds_in_medium
+                if total_preds_in_medium > 0
+                else 0.0
+            ),
+            "tail_acc": (
+                correct_preds_in_tail / total_preds_in_tail
+                if total_preds_in_tail > 0
+                else 0.0
+            ),
         }
 
     def evaluate(self, epoch):
-        acc_ntu3d = self.test_dataset(self.data_loaders["ntu3d_test"], self.label_features["ntu"])
-        acc_ntu2d = self.test_dataset(self.data_loaders["ntu2d_test"], self.label_features["ntu"])
-        acc_humanml3d = self.test_humanml3d(self.data_loaders["humanml3d_test"], self.label_features["humanml3d"])
+        acc_ntu3d = self.test_dataset(
+            self.data_loaders["ntu3d_test"], self.label_features["ntu"]
+        )
+        acc_ntu2d = self.test_dataset(
+            self.data_loaders["ntu2d_test"], self.label_features["ntu"]
+        )
+        acc_humanml3d = self.test_humanml3d(
+            self.data_loaders["humanml3d_test"],
+            self.label_features["humanml3d"],
+        )
 
         self.writer.add_scalar("test/ntu3d", acc_ntu3d, epoch)
         self.writer.add_scalar("test/ntu2d", acc_ntu2d, epoch)
@@ -313,12 +382,18 @@ class Trainer:
             self.best_results["ntu2d"] = {"epoch": epoch, "acc": acc_ntu2d}
             self.save_model(self.output_dir / "best_ntu2d.pth")
         if acc_humanml3d["overall_acc"] > self.best_results["humanml3d"]["overall"]["acc"]:
-            self.best_results["humanml3d"]["overall"] = {"epoch": epoch, "acc": acc_humanml3d["overall_acc"]}
+            self.best_results["humanml3d"]["overall"] = {
+                "epoch": epoch,
+                "acc": acc_humanml3d["overall_acc"],
+            }
             self.save_model(self.output_dir / "best_humanml3d_overall.pth")
         for key in ["head", "medium", "tail"]:
             metric_key = f"{key}_acc"
             if acc_humanml3d[metric_key] > self.best_results["humanml3d"][key]["acc"]:
-                self.best_results["humanml3d"][key] = {"epoch": epoch, "acc": acc_humanml3d[metric_key]}
+                self.best_results["humanml3d"][key] = {
+                    "epoch": epoch,
+                    "acc": acc_humanml3d[metric_key],
+                }
 
     def run(self):
         set_seed(self.cfg.seed)
@@ -333,7 +408,8 @@ class Trainer:
             if epoch % 8 == 0 and epoch >= 10:
                 with torch.no_grad():
                     self.evaluate(epoch)
-        self.logger.info(f"Finished in {(time.time() - start_time) / 3600:.2f} hours")
+        elapsed_hours = (time.time() - start_time) / 3600
+        self.logger.info(f"Finished in {elapsed_hours:.2f} hours")
 
 
 def main():
